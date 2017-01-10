@@ -46,6 +46,8 @@ new const String:g_sRunEndMsg[][] = {
   "[SM] Checkpoint."
 };
 
+bool g_bIsTeleporting[MAXPLAYERS+1];
+
 float g_fCapzone[TEAM_ENUM_COUNT][PROP_ENUM_COUNT][POS_ENUM_COUNT];
 float g_fRunTime_PB[MAXPLAYERS+1][TEAM_ENUM_COUNT];
 
@@ -66,6 +68,7 @@ void ClearClientVariables(int client)
 {
   PrintToServer("ClearClientVariables");
 
+  g_bIsTeleporting[client] = false;
   g_iGoal[client] = TEAM_NONE;
   g_fRunTime_Start[client] = 0.0;
   g_fRunTime_Current[client] = 0.0;
@@ -75,17 +78,59 @@ void ClearClientVariables(int client)
 
 void TeleportPlayer(int client)
 {
-  if (!IsValidTeam(g_iGoal[client]))
+  if (!IsValidClient(client))
   {
-    g_iGoal[client] = TEAM_JINRAI;
+    return;
   }
 
-  g_fRunTime_Start[client] = 0.0;
-  SetEntPropVector(client, Prop_Send, "m_vecOrigin", g_fCapzone[g_iGoal[client]][PROP_POSITION]);
-  // TODO: player angles, client entprops for rotation seem weird?
+  PrintToChat(client, "[SM] Teleporting...");
+  g_bIsTeleporting[client] = true;
 
-  //TeleportEntity(client,
-  //  g_fCapzone[g_iGoal[client]][PROP_POSITION], NULL_VECTOR, zeroSpeed);
+  // Block player movement as it interferes with player ticks while teleporting
+  int buttons = GetEntityFlags(client);
+  if(!(buttons & FL_FROZEN))
+  {
+    SetEntityFlags(client, (buttons |= FL_FROZEN));
+  }
+
+  CreateTimer(2.5, Timer_Teleport, GetClientUserId(client));
+}
+
+public Action Timer_Teleport(Handle timer, int userid)
+{
+  int client = GetClientOfUserId(userid);
+  if (!IsValidClient(client))
+  {
+    return Plugin_Stop;
+  }
+
+  g_iGoal[client] = FIRST_GOAL;
+
+  SetEntPropVector(client, Prop_Send, "m_vecOrigin",
+    g_fCapzone[GetOppositeTeam(FIRST_GOAL)][PROP_POSITION]);
+
+  // Teleporting complete, allow player to move again
+  CreateTimer(0.1, Timer_AllowMovement, userid);
+  return Plugin_Handled;
+}
+
+public Action Timer_AllowMovement(Handle timer, int userid)
+{
+  int client = GetClientOfUserId(userid);
+  if (!IsValidClient(client))
+  {
+    return Plugin_Stop;
+  }
+
+  g_bIsTeleporting[client] = false;
+  g_fRunTime_Start[client] = 0.0;
+
+  int buttons = GetEntityFlags(client);
+  if (buttons & FL_FROZEN)
+  {
+    SetEntityFlags(client, (buttons &= ~FL_FROZEN));
+  }
+  return Plugin_Handled;
 }
 
 bool IsNullVector(float[] vector)
@@ -123,7 +168,10 @@ void CheckRunnerGoal(int client)
   if (!IsValidClient(client) || IsFakeClient(client))
     return;
   */
-
+  if (g_bIsTeleporting[client])
+  {
+    return;
+  }
   // Client has no speedrun goal set yet
   if (g_iGoal[client] == TEAM_NONE)
   {
