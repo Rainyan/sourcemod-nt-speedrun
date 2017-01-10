@@ -106,8 +106,12 @@ public Action Timer_Teleport(Handle timer, int userid)
 
   g_iGoal[client] = FIRST_GOAL;
 
-  SetEntPropVector(client, Prop_Send, "m_vecOrigin",
-    g_fCapzone[GetOppositeTeam(FIRST_GOAL)][PROP_POSITION]);
+  float location[3];
+  location = g_fCapzone[GetOppositeTeam(FIRST_GOAL)][PROP_POSITION];
+  // Increase height to avoid players stucking to the ground
+  location[POS_Z] += 32;
+
+  SetEntPropVector(client, Prop_Send, "m_vecOrigin", location);
 
   // Teleporting complete, allow player to move again
   CreateTimer(0.1, Timer_AllowMovement, userid);
