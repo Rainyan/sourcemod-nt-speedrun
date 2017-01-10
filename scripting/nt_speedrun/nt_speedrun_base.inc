@@ -201,7 +201,7 @@ void SetClientGoal(int client, int desiredGoal = TEAM_NONE)
 
 void FlipClientGoal(int client)
 {
-  if (g_iGoal[client] != TEAM_JINRAI && g_iGoal[client] != TEAM_NSF)
+  if (!IsValidTeam(g_iGoal[client]))
   {
     ThrowError("Client %i has an invalid goal %i", client, g_iGoal[client]);
   }
