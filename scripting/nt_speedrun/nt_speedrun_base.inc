@@ -231,32 +231,40 @@ int GetOppositeTeam(int team)
   return TEAM_JINRAI;
 }
 
+bool IsPosWithinRadius(float[3] pos, float[3] targetPos, float radius)
+{
+  for (int i = 0; i < POS_ENUM_COUNT; i++)
+  {
+    //PrintToChatAll("pos %f vs target %f. radius %f.", pos[i], targetPos[i], radius);
+    if (pos[i] > targetPos[i] + radius || pos[i] < targetPos[i] - radius)
+      return false;
+  }
+  //PrintToChatAll("radius TRUE");
+  return true;
+}
+
 int GetReachedGoal(int client)
 {
   float clientPos[POS_ENUM_COUNT];
   GetClientEyePosition(client, clientPos);
 
-  for (int i = 0; i < POS_ENUM_COUNT; i++)
+  for (int team = TEAM_JINRAI; team <= TEAM_NSF; team++)
   {
-    /*
-    PrintToChatAll("Comparing %f VS %f and %f VS %f",
-      g_fCapzone[team][PROP_POSITION][i],
-      clientPos[i] + g_fCapzone[team][PROP_RADIUS][0],
-      g_fCapzone[team][PROP_POSITION][i],
-      clientPos[i] + g_fCapzone[team][PROP_RADIUS][0]
-    );
-    */
-    for (int team = TEAM_JINRAI; team == TEAM_NSF; team++)
+    int pos;
+    for (pos = 0; pos < POS_ENUM_COUNT; pos++)
     {
-      if (g_fCapzone[team][PROP_POSITION][i] >= clientPos[i] - g_fCapzone[team][PROP_RADIUS][0] ||
-          g_fCapzone[team][PROP_POSITION][i] <= clientPos[i] + g_fCapzone[team][PROP_RADIUS][0])
+      if (!IsPosWithinRadius(clientPos, g_fCapzone[team][PROP_POSITION],
+        g_fCapzone[team][PROP_RADIUS][0]))
       {
-        //PrintToChatAll("No reach");
-        return team;
+        break;
       }
     }
+    // pos loop passed all the way; we are inside the capzone radius
+    if (pos == POS_ENUM_COUNT)
+    {
+      return team;
+    }
   }
-
   return TEAM_NONE;
 }
 
