@@ -27,12 +27,24 @@ enum {
   MENU_MAIN_EXIT
 };
 
+enum {
+  RUNMSG_PB = 0,
+  RUNMSG_FINISHED,
+  RUNMSG_CHECKPOINT
+};
+
 new const String:g_sSound_Start[] = "ui/buttonclickrelease.wav";
 new const String:g_sSound_MenuCancel[] = "buttons/combine_button7.wav";
 new const String:g_sSound_MenuOK[] = "buttons/button14.wav";
 
 new const String:g_sFX_Laser[] = "sprites/bluelaser1.vmt";
 new const String:g_sFX_Halo[] = "sprites/blueglow1.vmt";
+
+new const String:g_sRunEndMsg[][] = {
+  "[SM] Improved personal record!",
+  "[SM] Run finished.",
+  "[SM] Checkpoint."
+};
 
 float g_fCapzone[TEAM_ENUM_COUNT][PROP_ENUM_COUNT][POS_ENUM_COUNT];
 float g_fRunTime_PB[MAXPLAYERS+1][TEAM_ENUM_COUNT];
@@ -123,7 +135,7 @@ void CheckRunnerGoal(int client)
 
   if (reachedGoal == g_iGoal[client])
   {
-    EndRun(client);
+    SplitTime(client);
   }
   else if (reachedGoal == GetOppositeTeam(g_iGoal[client]))
   {
@@ -158,25 +170,64 @@ void FinishTime(int client)
   EmitSoundToClient(client, g_sSound_Start);
 }
 
-void EndRun(int client)
+void SplitTime(int client)
 {
   FinishTime(client);
   SetPlayerAUX(client, 100.0);
 
-  float record = g_fRunTime_PB[client][g_iGoal[client]];
-  if (record == 0 || g_fRunTime_Current[client] < record)
+  int goal = g_iGoal[client];
+  if (!IsValidTeam(goal))
   {
-    g_fRunTime_PB[client][g_iGoal[client]] = g_fRunTime_Current[client];
-    if (g_fRunTime_Current[client] < record)
+    ThrowError("Client %i has invalid goal %i", client, goal);
+  }
+
+  float record = g_fRunTime_PB[client][goal];
+  float current = g_fRunTime_Current[client];
+
+  // Midway checkpoint
+  if (goal == FIRST_GOAL)
+  {
+    // First time running this
+    if (record == 0)
     {
-      PrintToChat(client, "[SM] Improved personal record! %.2f (PB -%.2f)",
-        record, record - g_fRunTime_Current[client]);
+      //PrintToChat(client, "1st, record %f current %f", record, current);
+      PrintToChat(client, "%s %.2f", g_sRunEndMsg[RUNMSG_CHECKPOINT], current);
+      g_fRunTime_PB[client][goal] = current;
+    }
+    // Log time, show difference to personal best time
+    else
+    {
+      //PrintToChat(client, "2nd, record %f current %f", record, current);
+      PrintToChat(client, "%s %.2f (PB %.2f)",
+        g_sRunEndMsg[RUNMSG_CHECKPOINT], current, current - record);
     }
   }
-  if (record == 0 || g_fRunTime_Current[client] >= record)
+  // Finish
+  else
   {
-    PrintToChat(client, "[SM] Run finished. %.2f (PB +%.2f)",
-      record, record - g_fRunTime_Current[client] * -1);
+    // First time running this
+    if (record == 0)
+    {
+      //PrintToChat(client, "1st, record %f current %f", record, current);
+      PrintToChat(client, "%s %.2f", g_sRunEndMsg[RUNMSG_FINISHED], current);
+      g_fRunTime_PB[client][goal] = current;
+    }
+    // New personal best
+    else if (current < record)
+    {
+      //PrintToChat(client, "2nd, record %f current %f", record, current);
+      PrintToChat(client, "%s %.2f (PB %.2f)",
+        g_sRunEndMsg[RUNMSG_PB], current, current - record);
+
+      g_fRunTime_PB[client][goal] = current;
+    }
+    // No record time
+    else
+    {
+      //PrintToChat(client, "3rd, record %f current %f", record, current);
+      PrintToChat(client, "%s %.2f (PB +%.2f)",
+        g_sRunEndMsg[RUNMSG_FINISHED], current, current - record);
+    }
   }
 
   FlipClientGoal(client);
