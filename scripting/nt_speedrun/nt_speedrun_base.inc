@@ -173,7 +173,7 @@ void EndRun(int client)
         record, record - g_fRunTime_Current[client]);
     }
   }
-  else if (record == 0 || g_fRunTime_Current[client] > record)
+  if (record == 0 || g_fRunTime_Current[client] >= record)
   {
     PrintToChat(client, "[SM] Run finished. %.2f (PB +%.2f)",
       record, record - g_fRunTime_Current[client] * -1);
