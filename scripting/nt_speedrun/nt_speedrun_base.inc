@@ -278,7 +278,7 @@ void SplitTime(int client)
     // First time running this
     if (splitPB == 0)
     {
-      PrintToChat(client, "%s %.2f", g_sRunEndMsg[RUNMSG_SPLIT],
+      PrintToChat(client, "%s = %.2f", g_sRunEndMsg[RUNMSG_SPLIT],
         g_fRunTime_Split_End[client]);
 
       g_fRunTime_Split_PB[client] = g_fRunTime_Split_End[client];
@@ -286,7 +286,7 @@ void SplitTime(int client)
     // New personal best
     else if (g_fRunTime_Split_End[client] < splitPB)
     {
-      PrintToChat(client, "%s %.2f (PB %.2f)",
+      PrintToChat(client, "%s = %.2f (PB %.2f)",
         g_sRunEndMsg[RUNMSG_SPLIT_PB], g_fRunTime_Split_End[client],
         g_fRunTime_Split_End[client] - splitPB);
 
@@ -295,7 +295,7 @@ void SplitTime(int client)
     // Not a record time
     else
     {
-      PrintToChat(client, "%s %.2f (PB +%.2f)",
+      PrintToChat(client, "%s = %.2f (PB +%.2f)",
         g_sRunEndMsg[RUNMSG_SPLIT], g_fRunTime_Split_End[client],
         g_fRunTime_Split_End[client] - splitPB);
     }
@@ -311,7 +311,7 @@ void SplitTime(int client)
       // First time running this
       if (goalPB == 0)
       {
-        PrintToChat(client, "%s %.2f", g_sRunEndMsg[RUNMSG_GOAL],
+        PrintToChat(client, "%s = %.2f", g_sRunEndMsg[RUNMSG_GOAL],
           g_fRunTime_Goal_End[client]);
 
         g_fRunTime_Goal_PB[client] = g_fRunTime_Goal_End[client];
@@ -319,7 +319,7 @@ void SplitTime(int client)
       // New personal best
       else if (g_fRunTime_Goal_End[client] < goalPB)
       {
-        PrintToChat(client, "%s %.2f (PB %.2f)",
+        PrintToChat(client, "%s = %.2f (PB %.2f)",
           g_sRunEndMsg[RUNMSG_GOAL_PB], g_fRunTime_Goal_End[client],
           g_fRunTime_Goal_End[client] - goalPB);
 
@@ -328,7 +328,7 @@ void SplitTime(int client)
       // Not a record time
       else
       {
-        PrintToChat(client, "%s %.2f (PB +%.2f)",
+        PrintToChat(client, "%s = %.2f (PB +%.2f)",
           g_sRunEndMsg[RUNMSG_GOAL], g_fRunTime_Goal_End[client],
           g_fRunTime_Goal_End[client] - goalPB);
       }
@@ -342,14 +342,14 @@ void SplitTime(int client)
       // First time finishing
       if (combinedPB == 0)
       {
-        PrintToChat(client, "%s %.2f", g_sRunEndMsg[RUNMSG_COMBINED], combinedTime);
+        PrintToChat(client, "%s = %.2f", g_sRunEndMsg[RUNMSG_COMBINED], combinedTime);
 
         g_fRunTime_Combined_PB[client] = combinedTime;
       }
       // New personal best
       else if (combinedTime < combinedPB)
       {
-        PrintToChat(client, "%s %.2f (PB %.2f)",
+        PrintToChat(client, "%s = %.2f (PB %.2f)",
           g_sRunEndMsg[RUNMSG_COMBINED_PB], combinedTime, combinedTime - combinedPB);
 
         g_fRunTime_Combined_PB[client] = combinedTime;
@@ -357,7 +357,7 @@ void SplitTime(int client)
       // Not a record time
       else
       {
-        PrintToChat(client, "%s %.2f (PB +%.2f)",
+        PrintToChat(client, "%s = %.2f (PB +%.2f)",
           g_sRunEndMsg[RUNMSG_COMBINED], combinedTime, combinedTime - combinedPB);
       }
     }
