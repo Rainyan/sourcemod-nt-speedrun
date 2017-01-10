@@ -75,13 +75,10 @@ void ClearClientVariables(int client)
 
 void TeleportPlayer(int client)
 {
-  if (!IsValidTeam(g_iGoal[client]))
-  {
-    g_iGoal[client] = TEAM_JINRAI;
-  }
-
-  g_fRunTime_Start[client] = 0.0;
-  SetEntPropVector(client, Prop_Send, "m_vecOrigin", g_fCapzone[g_iGoal[client]][PROP_POSITION]);
+  ResetTime(client);
+  SetClientGoal(client, GetOppositeTeam(FIRST_GOAL));
+  SetEntPropVector(client, Prop_Send, "m_vecOrigin",
+    g_fCapzone[GetClientGoal(client)][PROP_POSITION]);
   // TODO: player angles, client entprops for rotation seem weird?
 
   //TeleportEntity(client,
@@ -124,8 +121,10 @@ void CheckRunnerGoal(int client)
     return;
   */
 
+  int goal = GetClientGoal(client);
+
   // Client has no speedrun goal set yet
-  if (g_iGoal[client] == TEAM_NONE)
+  if (goal == TEAM_NONE)
   {
     SetClientGoal(client, FIRST_GOAL);
     return;
@@ -133,11 +132,11 @@ void CheckRunnerGoal(int client)
 
   int reachedGoal = GetReachedGoal(client);
 
-  if (reachedGoal == g_iGoal[client])
+  if (reachedGoal == goal)
   {
     SplitTime(client);
   }
-  else if (reachedGoal == GetOppositeTeam(g_iGoal[client]))
+  else if (reachedGoal == GetOppositeTeam(goal))
   {
     if (g_fRunTime_Start[client] != 0)
     {
@@ -175,7 +174,7 @@ void SplitTime(int client)
   FinishTime(client);
   SetPlayerAUX(client, 100.0);
 
-  int goal = g_iGoal[client];
+  int goal = GetClientGoal(client);
   if (!IsValidTeam(goal))
   {
     ThrowError("Client %i has invalid goal %i", client, goal);
@@ -234,11 +233,16 @@ void SplitTime(int client)
   //PrintToChatAll("New goal is to %i", g_iGoal[client]);
 }
 
+int GetClientGoal(int client)
+{
+  return g_iGoal[client];
+}
+
 void SetClientGoal(int client, int desiredGoal = TEAM_NONE)
 {
   if (desiredGoal != TEAM_NONE)
   {
-    g_iGoal[client] = desiredGoal;
+    SetClientGoal(client, desiredGoal);
     return;
   }
 
@@ -252,11 +256,12 @@ void SetClientGoal(int client, int desiredGoal = TEAM_NONE)
 
 void FlipClientGoal(int client)
 {
-  if (!IsValidTeam(g_iGoal[client]))
+  int goal = GetClientGoal(client);
+  if (!IsValidTeam(goal))
   {
-    ThrowError("Client %i has an invalid goal %i", client, g_iGoal[client]);
+    ThrowError("Client %i has an invalid goal %i", client, goal);
   }
-  g_iGoal[client] = GetOppositeTeam(g_iGoal[client]);
+  SetClientGoal(client, GetOppositeTeam(goal));
 }
 
 bool IsValidTeam(int team)
