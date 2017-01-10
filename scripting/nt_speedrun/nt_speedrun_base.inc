@@ -28,9 +28,12 @@ enum {
 };
 
 enum {
-  RUNMSG_PB = 0,
-  RUNMSG_FINISHED,
-  RUNMSG_CHECKPOINT
+  RUNMSG_SPLIT = 0,
+  RUNMSG_SPLIT_PB,
+  RUNMSG_GOAL,
+  RUNMSG_GOAL_PB,
+  RUNMSG_COMBINED,
+  RUNMSG_COMBINED_PB
 };
 
 new const String:g_sSound_Start[] = "ui/buttonclickrelease.wav";
@@ -41,18 +44,27 @@ new const String:g_sFX_Laser[] = "sprites/bluelaser1.vmt";
 new const String:g_sFX_Halo[] = "sprites/blueglow1.vmt";
 
 new const String:g_sRunEndMsg[][] = {
-  "[SM] Improved personal record!",
-  "[SM] Run finished.",
-  "[SM] Checkpoint."
+  "[RUN] Split 1/2",
+  "[RECORD] Split 1/2",
+  "[RUN] Split 2/2",
+  "[RECORD] Split 2/2",
+  "[RUN] Goal",
+  "[RECORD] Goal"
 };
 
 bool g_bIsTeleporting[MAXPLAYERS+1];
 
 float g_fCapzone[TEAM_ENUM_COUNT][PROP_ENUM_COUNT][POS_ENUM_COUNT];
-float g_fRunTime_PB[MAXPLAYERS+1][TEAM_ENUM_COUNT];
+float g_fRunTime_Split_PB[MAXPLAYERS+1];
+float g_fRunTime_Goal_PB[MAXPLAYERS+1];
+float g_fRunTime_Combined_PB[MAXPLAYERS+1];
 
-float g_fRunTime_Start[MAXPLAYERS+1];
-float g_fRunTime_Current[MAXPLAYERS+1];
+float g_fRunTime_Split_Start[MAXPLAYERS+1];
+float g_fRunTime_Split_End[MAXPLAYERS+1];
+
+float g_fRunTime_Goal_Start[MAXPLAYERS+1];
+float g_fRunTime_Goal_End[MAXPLAYERS+1];
+
 
 int g_iLaserRef;
 int g_iHaloRef;
@@ -69,11 +81,17 @@ void ClearClientVariables(int client)
   PrintToServer("ClearClientVariables");
 
   g_bIsTeleporting[client] = false;
+
   g_iGoal[client] = TEAM_NONE;
-  g_fRunTime_Start[client] = 0.0;
-  g_fRunTime_Current[client] = 0.0;
-  g_fRunTime_PB[client][TEAM_JINRAI] = 0.0;
-  g_fRunTime_PB[client][TEAM_NSF] = 0.0;
+
+  g_fRunTime_Split_Start[client] = 0.0;
+  g_fRunTime_Split_End[client] = 0.0;
+  g_fRunTime_Goal_Start[client] = 0.0;
+  g_fRunTime_Goal_End[client] = 0.0;
+
+  g_fRunTime_Split_PB[client] = 0.0;
+  g_fRunTime_Goal_PB[client] = 0.0;
+  g_fRunTime_Combined_PB[client] = 0.0;
 }
 
 void TeleportPlayer(int client)
@@ -83,7 +101,7 @@ void TeleportPlayer(int client)
     return;
   }
 
-  PrintToChat(client, "[SM] Teleporting...");
+  PrintToChat(client, "[RUN] Teleporting...");
   g_bIsTeleporting[client] = true;
 
   // Block player movement as it interferes with player ticks while teleporting
@@ -127,7 +145,7 @@ public Action Timer_AllowMovement(Handle timer, int userid)
   }
 
   g_bIsTeleporting[client] = false;
-  g_fRunTime_Start[client] = 0.0;
+  g_fRunTime_Split_Start[client] = 0.0;
 
   int buttons = GetEntityFlags(client);
   if (buttons & FL_FROZEN)
@@ -191,12 +209,15 @@ void CheckRunnerGoal(int client)
   }
   else if (reachedGoal == GetOppositeTeam(g_iGoal[client]))
   {
-    if (g_fRunTime_Start[client] != 0)
+    if (g_fRunTime_Split_Start[client] != 0)
     {
       ResetTime(client);
     }
   }
-  else if (g_fRunTime_Start[client] == 0)
+  else if (
+    (g_iGoal[client] == FIRST_GOAL && g_fRunTime_Split_Start[client] == 0) ||
+    (g_iGoal[client] == GetOppositeTeam(FIRST_GOAL) && g_fRunTime_Goal_Start[client] == 0)
+  )
   {
     StartTime(client);
   }
@@ -204,28 +225,36 @@ void CheckRunnerGoal(int client)
 
 void ResetTime(int client)
 {
-  g_fRunTime_Start[client] = 0.0;
-  PrintToChat(client, "[SM] Timer reset");
+  if (g_iGoal[client] == FIRST_GOAL && g_fRunTime_Split_Start[client] != 0)
+  {
+    g_fRunTime_Split_Start[client] = 0.0;
+    PrintToChat(client, "[RUN] Timer stopped");
+  }
+  else if (g_fRunTime_Goal_Start[client] != 0)
+  {
+    g_fRunTime_Goal_Start[client] = 0.0;
+    PrintToChat(client, "[RUN] Timer paused");
+  }
 }
 
 void StartTime(int client)
 {
-  g_fRunTime_Start[client] = GetGameTime();
-  EmitSoundToClient(client, g_sSound_Start);
-  PrintToChat(client, "[SM] Run started");
-}
-
-void FinishTime(int client)
-{
-  float finishTime = GetGameTime();
-  g_fRunTime_Current[client] = finishTime - g_fRunTime_Start[client];
+  if (g_iGoal[client] == FIRST_GOAL)
+  {
+    g_fRunTime_Split_Start[client] = GetGameTime();
+    PrintToChat(client, "[RUN] Run started");
+  }
+  else
+  {
+    g_fRunTime_Goal_Start[client] = GetGameTime();
+    PrintToChat(client, "[RUN] Run continued");
+  }
   EmitSoundToClient(client, g_sSound_Start);
 }
 
 void SplitTime(int client)
 {
-  FinishTime(client);
-  SetPlayerAUX(client, 100.0);
+  float gametime = GetGameTime();
 
   int goal = g_iGoal[client];
   if (!IsValidTeam(goal))
@@ -233,57 +262,108 @@ void SplitTime(int client)
     ThrowError("Client %i has invalid goal %i", client, goal);
   }
 
-  float record = g_fRunTime_PB[client][goal];
-  float current = g_fRunTime_Current[client];
+  EmitSoundToClient(client, g_sSound_Start);
+  SetPlayerAUX(client, 100.0);
 
-  // Midway checkpoint
+  float splitPB = g_fRunTime_Split_PB[client];
+  float goalPB = g_fRunTime_Goal_PB[client];
+  float combinedPB = g_fRunTime_Combined_PB[client];
+
+  // Midway split
   if (goal == FIRST_GOAL)
   {
+    g_fRunTime_Split_End[client] = gametime - g_fRunTime_Split_Start[client];
+    /*PrintToChat(client, "Split %f from %f - %f",
+      g_fRunTime_Split_End[client], gametime, g_fRunTime_Split_Start[client]);*/
     // First time running this
-    if (record == 0)
+    if (splitPB == 0)
     {
-      //PrintToChat(client, "1st, record %f current %f", record, current);
-      PrintToChat(client, "%s %.2f", g_sRunEndMsg[RUNMSG_CHECKPOINT], current);
-      g_fRunTime_PB[client][goal] = current;
-    }
-    // Log time, show difference to personal best time
-    else
-    {
-      //PrintToChat(client, "2nd, record %f current %f", record, current);
-      PrintToChat(client, "%s %.2f (PB %.2f)",
-        g_sRunEndMsg[RUNMSG_CHECKPOINT], current, current - record);
-    }
-  }
-  // Finish
-  else
-  {
-    // First time running this
-    if (record == 0)
-    {
-      //PrintToChat(client, "1st, record %f current %f", record, current);
-      PrintToChat(client, "%s %.2f", g_sRunEndMsg[RUNMSG_FINISHED], current);
-      g_fRunTime_PB[client][goal] = current;
+      PrintToChat(client, "%s %.2f", g_sRunEndMsg[RUNMSG_SPLIT],
+        g_fRunTime_Split_End[client]);
+
+      g_fRunTime_Split_PB[client] = g_fRunTime_Split_End[client];
     }
     // New personal best
-    else if (current < record)
+    else if (g_fRunTime_Split_End[client] < splitPB)
     {
-      //PrintToChat(client, "2nd, record %f current %f", record, current);
       PrintToChat(client, "%s %.2f (PB %.2f)",
-        g_sRunEndMsg[RUNMSG_PB], current, current - record);
+        g_sRunEndMsg[RUNMSG_SPLIT_PB], g_fRunTime_Split_End[client],
+        g_fRunTime_Split_End[client] - splitPB);
 
-      g_fRunTime_PB[client][goal] = current;
+      g_fRunTime_Split_PB[client] = g_fRunTime_Split_End[client];
     }
-    // No record time
+    // Not a record time
     else
     {
-      //PrintToChat(client, "3rd, record %f current %f", record, current);
       PrintToChat(client, "%s %.2f (PB +%.2f)",
-        g_sRunEndMsg[RUNMSG_FINISHED], current, current - record);
+        g_sRunEndMsg[RUNMSG_SPLIT], g_fRunTime_Split_End[client],
+        g_fRunTime_Split_End[client] - splitPB);
+    }
+  }
+  // Goal split
+  else
+  {
+    g_fRunTime_Goal_End[client] = gametime - g_fRunTime_Goal_Start[client];
+    /*PrintToChat(client, "Goal %f from %f - %f",
+      g_fRunTime_Goal_End[client], gametime, g_fRunTime_Goal_Start[client]);*/
+    // Check split time
+    {
+      // First time running this
+      if (goalPB == 0)
+      {
+        PrintToChat(client, "%s %.2f", g_sRunEndMsg[RUNMSG_GOAL],
+          g_fRunTime_Goal_End[client]);
+
+        g_fRunTime_Goal_PB[client] = g_fRunTime_Goal_End[client];
+      }
+      // New personal best
+      else if (g_fRunTime_Goal_End[client] < goalPB)
+      {
+        PrintToChat(client, "%s %.2f (PB %.2f)",
+          g_sRunEndMsg[RUNMSG_GOAL_PB], g_fRunTime_Goal_End[client],
+          g_fRunTime_Goal_End[client] - goalPB);
+
+        g_fRunTime_Goal_PB[client] = g_fRunTime_Goal_End[client];
+      }
+      // Not a record time
+      else
+      {
+        PrintToChat(client, "%s %.2f (PB +%.2f)",
+          g_sRunEndMsg[RUNMSG_GOAL], g_fRunTime_Goal_End[client],
+          g_fRunTime_Goal_End[client] - goalPB);
+      }
+    }
+    // Check final time
+    {
+      float combinedTime = g_fRunTime_Goal_End[client] + g_fRunTime_Split_End[client];
+      /*PrintToChat(client, "Combined %f from %f + %f",
+        combinedTime, g_fRunTime_Goal_End[client], g_fRunTime_Split_End[client]);*/
+
+      // First time finishing
+      if (combinedPB == 0)
+      {
+        PrintToChat(client, "%s %.2f", g_sRunEndMsg[RUNMSG_COMBINED], combinedTime);
+
+        g_fRunTime_Combined_PB[client] = combinedTime;
+      }
+      // New personal best
+      else if (combinedTime < combinedPB)
+      {
+        PrintToChat(client, "%s %.2f (PB %.2f)",
+          g_sRunEndMsg[RUNMSG_COMBINED_PB], combinedTime, combinedTime - combinedPB);
+
+        g_fRunTime_Combined_PB[client] = combinedTime;
+      }
+      // Not a record time
+      else
+      {
+        PrintToChat(client, "%s %.2f (PB +%.2f)",
+          g_sRunEndMsg[RUNMSG_COMBINED], combinedTime, combinedTime - combinedPB);
+      }
     }
   }
 
   FlipClientGoal(client);
-  //PrintToChatAll("New goal is to %i", g_iGoal[client]);
 }
 
 void SetClientGoal(int client, int desiredGoal = TEAM_NONE)
